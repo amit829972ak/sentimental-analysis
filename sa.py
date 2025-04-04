@@ -14,6 +14,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import urllib.request
 from urllib.error import URLError
+from PyPDF2 import PdfReader
+import io
 
 # Try to import newspaper3k with error handling
 try:
@@ -65,6 +67,26 @@ analysis_type = st.sidebar.selectbox(
     "Select Analysis Type",
     analysis_options
 )
+
+# Function to extract text from PDF
+def extract_text_from_pdf(pdf_file):
+    try:
+        pdf_reader = PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        return text
+    except Exception as e:
+        st.error(f"Error reading PDF: {str(e)}")
+        return None
+
+# Function to extract text from TXT
+def extract_text_from_txt(txt_file):
+    try:
+        return txt_file.getvalue().decode("utf-8")
+    except Exception as e:
+        st.error(f"Error reading TXT file: {str(e)}")
+        return None
 
 # Function to extract article text from URL
 def extract_article_text(url):
@@ -174,9 +196,6 @@ if analysis_type == "Single Text Analysis":
                 st.subheader("Text Analysis")
                 st.write("Processed Text:")
                 st.write(processed_text)
-                
-                # Word cloud (if you want to add it later)
-                st.write("Word cloud visualization would go here")
         
         else:
             st.warning("Please enter some text to analyze.")
@@ -246,18 +265,48 @@ elif analysis_type == "URL Analysis":
 
 else:  # Bulk Text Analysis
     st.header("Bulk Text Analysis")
-    uploaded_file = st.file_uploader("Upload a CSV file with a 'text' column", type=['csv'])
+    file_type = st.radio("Select file type:", ["TXT", "PDF"])
+    
+    if file_type == "TXT":
+        uploaded_file = st.file_uploader("Upload a TXT file", type=['txt'])
+    else:
+        uploaded_file = st.file_uploader("Upload a PDF file", type=['pdf'])
     
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
+        # Extract text based on file type
+        if file_type == "TXT":
+            text = extract_text_from_txt(uploaded_file)
+        else:
+            text = extract_text_from_pdf(uploaded_file)
         
-        if 'text' in df.columns:
-            # Process all texts
-            df['processed_text'] = df['text'].apply(preprocess_text)
-            df['textblob_polarity'] = df['text'].apply(lambda x: get_textblob_sentiment(x)[0])
-            df['textblob_subjectivity'] = df['text'].apply(lambda x: get_textblob_sentiment(x)[1])
-            df['vader_compound'] = df['text'].apply(lambda x: get_vader_sentiment(x)['compound'])
-            df['sentiment'] = df['textblob_polarity'].apply(get_sentiment_label)
+        if text:
+            # Split text into paragraphs or sections
+            paragraphs = [p for p in text.split('\n\n') if p.strip()]
+            
+            # Create a DataFrame to store results
+            results = []
+            for i, para in enumerate(paragraphs):
+                if para.strip():
+                    # Preprocess text
+                    processed_text = preprocess_text(para)
+                    
+                    # Get sentiment scores
+                    textblob_polarity, textblob_subjectivity = get_textblob_sentiment(para)
+                    vader_scores = get_vader_sentiment(para)
+                    
+                    results.append({
+                        'Paragraph': i + 1,
+                        'Text': para[:100] + '...' if len(para) > 100 else para,
+                        'TextBlob_Polarity': textblob_polarity,
+                        'TextBlob_Subjectivity': textblob_subjectivity,
+                        'VADER_Positive': vader_scores['pos'],
+                        'VADER_Neutral': vader_scores['neu'],
+                        'VADER_Negative': vader_scores['neg'],
+                        'VADER_Compound': vader_scores['compound'],
+                        'Sentiment': get_sentiment_label(textblob_polarity)
+                    })
+            
+            df = pd.DataFrame(results)
             
             # Display results
             st.subheader("Analysis Results")
@@ -268,17 +317,18 @@ else:  # Bulk Text Analysis
             
             with col1:
                 st.subheader("Sentiment Distribution")
-                fig = px.histogram(df, x='sentiment', title='Sentiment Distribution')
+                fig = px.histogram(df, x='Sentiment', title='Sentiment Distribution')
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
                 st.subheader("Polarity vs Subjectivity")
                 fig = px.scatter(
                     df,
-                    x='textblob_polarity',
-                    y='textblob_subjectivity',
-                    color='sentiment',
-                    title='Polarity vs Subjectivity'
+                    x='TextBlob_Polarity',
+                    y='TextBlob_Subjectivity',
+                    color='Sentiment',
+                    title='Polarity vs Subjectivity',
+                    hover_data=['Text']
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
@@ -291,9 +341,9 @@ else:  # Bulk Text Analysis
                 mime='text/csv'
             )
         else:
-            st.error("The uploaded CSV file must contain a 'text' column.")
+            st.error("Could not extract text from the file. Please try again.")
     else:
-        st.info("Please upload a CSV file to begin bulk analysis.")
+        st.info(f"Please upload a {file_type} file to begin analysis.")
 
 # Footer
 st.markdown("---")
