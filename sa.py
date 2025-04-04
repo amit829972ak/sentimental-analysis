@@ -12,9 +12,22 @@ from nltk.stem import WordNetLemmatizer
 import re
 import plotly.express as px
 import plotly.graph_objects as go
-from newspaper import Article
 import urllib.request
 from urllib.error import URLError
+
+# Try to import newspaper3k with error handling
+try:
+    from newspaper import Article
+    NEWSPAPER_AVAILABLE = True
+except ImportError:
+    NEWSPAPER_AVAILABLE = False
+    st.warning("""
+    The newspaper3k package is not installed. URL analysis features will be disabled.
+    To enable URL analysis, please install the package using:
+    ```
+    pip install newspaper3k
+    ```
+    """)
 
 # Download required NLTK data
 try:
@@ -43,14 +56,22 @@ This app performs sentiment analysis on text using multiple methods and provides
 """)
 
 # Sidebar for input options
+analysis_options = ["Single Text Analysis", "Bulk Text Analysis"]
+if NEWSPAPER_AVAILABLE:
+    analysis_options.append("URL Analysis")
+
 st.sidebar.header("Analysis Options")
 analysis_type = st.sidebar.selectbox(
     "Select Analysis Type",
-    ["Single Text Analysis", "Bulk Text Analysis", "URL Analysis"]
+    analysis_options
 )
 
 # Function to extract article text from URL
 def extract_article_text(url):
+    if not NEWSPAPER_AVAILABLE:
+        st.error("URL analysis is not available. Please install newspaper3k package.")
+        return None
+        
     try:
         article = Article(url)
         article.download()
