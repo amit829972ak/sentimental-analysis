@@ -7,4 +7,8 @@ textblob==0.17.1
 nltk==3.8.1
 plotly==5.18.0
 newspaper3k==0.2.8
-lxml_html_clean 
+beautifulsoup4==4.12.2
+lxml==4.9.3
+feedparser==6.0.10
+tldextract==3.6.0
+PyPDF2==3.0.1 
