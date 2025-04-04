@@ -12,6 +12,9 @@ from nltk.stem import WordNetLemmatizer
 import re
 import plotly.express as px
 import plotly.graph_objects as go
+from newspaper import Article
+import urllib.request
+from urllib.error import URLError
 
 # Download required NLTK data
 try:
@@ -43,8 +46,26 @@ This app performs sentiment analysis on text using multiple methods and provides
 st.sidebar.header("Analysis Options")
 analysis_type = st.sidebar.selectbox(
     "Select Analysis Type",
-    ["Single Text Analysis", "Bulk Text Analysis"]
+    ["Single Text Analysis", "Bulk Text Analysis", "URL Analysis"]
 )
+
+# Function to extract article text from URL
+def extract_article_text(url):
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        article.nlp()
+        return {
+            'title': article.title,
+            'text': article.text,
+            'summary': article.summary,
+            'keywords': article.keywords,
+            'publish_date': article.publish_date
+        }
+    except Exception as e:
+        st.error(f"Error extracting article: {str(e)}")
+        return None
 
 # Text preprocessing function
 def preprocess_text(text):
@@ -138,6 +159,69 @@ if analysis_type == "Single Text Analysis":
         
         else:
             st.warning("Please enter some text to analyze.")
+
+elif analysis_type == "URL Analysis":
+    st.header("URL Analysis")
+    url_input = st.text_input("Enter the URL of the article:")
+    
+    if st.button("Analyze URL"):
+        if url_input:
+            with st.spinner("Extracting article content..."):
+                article_data = extract_article_text(url_input)
+                
+                if article_data:
+                    st.subheader("Article Information")
+                    st.write(f"**Title:** {article_data['title']}")
+                    if article_data['publish_date']:
+                        st.write(f"**Published Date:** {article_data['publish_date']}")
+                    
+                    st.subheader("Article Summary")
+                    st.write(article_data['summary'])
+                    
+                    st.subheader("Key Topics")
+                    st.write(", ".join(article_data['keywords']))
+                    
+                    # Get sentiment scores
+                    textblob_polarity, textblob_subjectivity = get_textblob_sentiment(article_data['text'])
+                    vader_scores = get_vader_sentiment(article_data['text'])
+                    
+                    # Create columns for results
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("TextBlob Analysis")
+                        st.write(f"Polarity: {textblob_polarity:.2f}")
+                        st.write(f"Subjectivity: {textblob_subjectivity:.2f}")
+                        st.write(f"Sentiment: {get_sentiment_label(textblob_polarity)}")
+                        
+                        # Polarity gauge
+                        fig = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=textblob_polarity,
+                            domain={'x': [0, 1], 'y': [0, 1]},
+                            title={'text': "Polarity Score"},
+                            gauge={'axis': {'range': [-1, 1]}}
+                        ))
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        st.subheader("VADER Analysis")
+                        st.write(f"Positive: {vader_scores['pos']:.2f}")
+                        st.write(f"Neutral: {vader_scores['neu']:.2f}")
+                        st.write(f"Negative: {vader_scores['neg']:.2f}")
+                        st.write(f"Compound: {vader_scores['compound']:.2f}")
+                        
+                        # Sentiment distribution pie chart
+                        fig = px.pie(
+                            values=[vader_scores['pos'], vader_scores['neu'], vader_scores['neg']],
+                            names=['Positive', 'Neutral', 'Negative'],
+                            title='Sentiment Distribution'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Could not extract article content. Please check the URL and try again.")
+        else:
+            st.warning("Please enter a URL to analyze.")
 
 else:  # Bulk Text Analysis
     st.header("Bulk Text Analysis")
