@@ -5,4 +5,5 @@ matplotlib==3.8.2
 seaborn==0.13.1
 textblob==0.17.1
 nltk==3.8.1
-plotly==5.18.0 
+plotly==5.18.0
+newspaper3k==0.2.8
