@@ -7,3 +7,4 @@ textblob==0.17.1
 nltk==3.8.1
 plotly==5.18.0
 newspaper3k==0.2.8
+lxml_html_clean 
