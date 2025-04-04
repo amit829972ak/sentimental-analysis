@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import re
 import plotly.express as px
+from newspaper import Article
 import plotly.graph_objects as go
 import urllib.request
 from urllib.error import URLError
